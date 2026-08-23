@@ -200,14 +200,6 @@ cat /mnt/etc/fstab
 echo
 echo "Writing chroot setup script to /mnt/root/chroot-setup.sh ..."
 
-# --- Ask for hostname before chrooting ---
-read -r -p "Enter the hostname for this machine: " NEW_HOSTNAME
-if [[ -z "$NEW_HOSTNAME" ]]; then
-    echo "Error: hostname cannot be empty."
-    exit 1
-fi
-echo "Using hostname: $NEW_HOSTNAME"
-
 cat > /mnt/root/chroot-setup.sh << 'CHROOT_SCRIPT'
 #!/bin/bash
 set -euo pipefail
@@ -218,8 +210,14 @@ echo "=============================================="
 
 # --- Set hostname ---
 echo
-echo "Setting hostname to __HOSTNAME__ ..."
-echo "__HOSTNAME__" > /etc/hostname
+read -r -p "Enter the hostname for this machine: " NEW_HOSTNAME
+until [[ -n "$NEW_HOSTNAME" ]]; do
+    echo "Hostname cannot be empty."
+    read -r -p "Enter the hostname for this machine: " NEW_HOSTNAME
+done
+
+echo "Setting hostname to $NEW_HOSTNAME ..."
+echo "$NEW_HOSTNAME" > /etc/hostname
 cat /etc/hostname
 
 # --- Set timezone and keymap in rc.conf ---
@@ -280,9 +278,6 @@ echo
 echo "Chroot setup complete."
 CHROOT_SCRIPT
 
-# Inject the hostname into the chroot script (heredoc above is quoted/literal)
-sed -i "s/__HOSTNAME__/$NEW_HOSTNAME/g" /mnt/root/chroot-setup.sh
-
 chmod +x /mnt/root/chroot-setup.sh
 
 echo "Wrote /mnt/root/chroot-setup.sh"
@@ -295,6 +290,18 @@ xchroot /mnt /root/chroot-setup.sh
 
 echo
 echo "Back out of chroot."
+
+# --- Copy wpa_supplicant config so the new install can get on the network ---
+echo
+if [[ -f /etc/wpa_supplicant/wpa_supplicant.conf ]]; then
+    echo "Copying wpa_supplicant config into new install ..."
+    echo "Running: mkdir -p /mnt/etc/wpa_supplicant"
+    mkdir -p /mnt/etc/wpa_supplicant
+    echo "Running: cp /etc/wpa_supplicant/wpa_supplicant.conf /mnt/etc/wpa_supplicant/"
+    cp /etc/wpa_supplicant/wpa_supplicant.conf /mnt/etc/wpa_supplicant/
+else
+    echo "No /etc/wpa_supplicant/wpa_supplicant.conf found on live image, skipping."
+fi
 
 # --- Unmount everything ---
 echo
