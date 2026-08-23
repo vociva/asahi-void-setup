@@ -55,54 +55,63 @@ for p in "$EFI_PART" "$ROOT_PART"; do
     fi
 done
 
-# --- Check partition types via sgdisk, refuse anything Apple-flavored ---
-if ! command -v sgdisk >/dev/null 2>&1; then
-    echo "Error: sgdisk not found. Install gptfdisk (usually 'sgdisk' package)."
+# --- Check partition types via lsblk, refuse anything Apple-flavored ---
+if ! command -v lsblk >/dev/null 2>&1; then
+    echo "Error: lsblk not found (expected from util-linux, should always be present)."
     exit 1
 fi
 
 get_ptype() {
-    # Prints the GUID type code (e.g. EF00, 8300) for a given partition number
-    sgdisk -i "$1" "$DISK" 2>/dev/null | awk -F': ' '/Partition GUID code/{print $2}' | awk '{print $1}'
+    # Prints the GPT partition type GUID for a given partition device
+    lsblk -no PARTTYPE "$1"
 }
 
-EFI_TYPE=$(get_ptype "$EFI_NUM")
-ROOT_TYPE=$(get_ptype "$ROOT_NUM")
+EFI_TYPE=$(get_ptype "$EFI_PART" | tr '[:upper:]' '[:lower:]')
+ROOT_TYPE=$(get_ptype "$ROOT_PART" | tr '[:upper:]' '[:lower:]')
 
-echo "Detected EFI partition type code:  $EFI_TYPE"
-echo "Detected root partition type code: $ROOT_TYPE"
+echo "Detected EFI partition type GUID:  $EFI_TYPE"
+echo "Detected root partition type GUID: $ROOT_TYPE"
 echo
 
-# Known Apple type GUIDs (short codes as reported by sgdisk) we must never touch
-APPLE_TYPES_PATTERN="Apple"
+# Known GPT type GUIDs
+EFI_GUID="c12a7328-f81f-11d2-ba4b-00a0c93ec93b"
+LINUX_GUID="0fc63daf-8483-4772-8e79-3d69d8477de4"
 
-EFI_TYPE_FULL=$(sgdisk -i "$EFI_NUM" "$DISK" | grep "Partition GUID code")
-ROOT_TYPE_FULL=$(sgdisk -i "$ROOT_NUM" "$DISK" | grep "Partition GUID code")
+# Apple GPT type GUIDs we must never touch (APFS, HFS+, Apple boot, Apple RAID, etc.)
+APPLE_GUIDS=(
+    "7c3457ef-0000-11aa-aa11-00306543ecac"  # Apple APFS
+    "48465300-0000-11aa-aa11-00306543ecac"  # Apple HFS/HFS+
+    "426f6f74-0000-11aa-aa11-00306543ecac"  # Apple Boot
+    "52414944-0000-11aa-aa11-00306543ecac"  # Apple RAID
+    "52414944-5f4f-11aa-aa11-00306543ecac"  # Apple RAID offline
+    "4c616265-6c00-11aa-aa11-00306543ecac"  # Apple Label
+    "5265636f-7665-11aa-aa11-00306543ecac"  # Apple TV Recovery
+    "53746f72-6167-11aa-aa11-00306543ecac"  # Apple Core Storage
+)
 
-if echo "$EFI_TYPE_FULL" | grep -qi "$APPLE_TYPES_PATTERN"; then
-    echo "REFUSING: partition $EFI_NUM looks like an Apple partition type."
-    echo "  $EFI_TYPE_FULL"
+for guid in "${APPLE_GUIDS[@]}"; do
+    if [[ "$EFI_TYPE" == "$guid" ]]; then
+        echo "REFUSING: partition $EFI_NUM has an Apple partition type GUID ($EFI_TYPE)."
+        exit 1
+    fi
+    if [[ "$ROOT_TYPE" == "$guid" ]]; then
+        echo "REFUSING: partition $ROOT_NUM has an Apple partition type GUID ($ROOT_TYPE)."
+        exit 1
+    fi
+done
+
+if [[ "$EFI_TYPE" != "$EFI_GUID" ]]; then
+    echo "REFUSING: partition $EFI_NUM is not type 'EFI System' ($EFI_GUID)."
+    echo "  Got: $EFI_TYPE"
     exit 1
 fi
-if echo "$ROOT_TYPE_FULL" | grep -qi "$APPLE_TYPES_PATTERN"; then
-    echo "REFUSING: partition $ROOT_NUM looks like an Apple partition type."
-    echo "  $ROOT_TYPE_FULL"
+if [[ "$ROOT_TYPE" != "$LINUX_GUID" ]]; then
+    echo "REFUSING: partition $ROOT_NUM is not type 'Linux filesystem' ($LINUX_GUID)."
+    echo "  Got: $ROOT_TYPE"
     exit 1
 fi
 
-# EFI System Partition should be type EF00, Linux filesystem should be 8300
-if [[ "$EFI_TYPE" != "EF00" ]]; then
-    echo "REFUSING: partition $EFI_NUM is not type EF00 (EFI System)."
-    echo "  Got: $EFI_TYPE_FULL"
-    exit 1
-fi
-if [[ "$ROOT_TYPE" != "8300" ]]; then
-    echo "REFUSING: partition $ROOT_NUM is not type 8300 (Linux filesystem)."
-    echo "  Got: $ROOT_TYPE_FULL"
-    exit 1
-fi
-
-echo "Partition types look correct (EFI=EF00, root=8300)."
+echo "Partition types look correct (EFI System, Linux filesystem)."
 echo
 
 # --- Final confirmation before destructive formatting ---
