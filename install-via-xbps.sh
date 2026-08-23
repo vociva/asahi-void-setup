@@ -255,11 +255,14 @@ echo
 echo "Reconfiguring locales ..."
 xbps-reconfigure -f glibc-locales
 
-# --- Note on root password ---
+# --- Set root password interactively ---
 echo
-echo "NOTE: root password was not set by this script."
-echo "Run 'passwd' manually before rebooting, from outside or by"
-echo "chrooting back in, since it defaults to blank/voidlinux."
+echo "Set the root password now:"
+until passwd root; do
+    echo
+    echo "Password not set (mismatch or error). Try again."
+done
+echo "Root password set."
 
 # --- Install GRUB ---
 echo
@@ -303,6 +306,3 @@ echo
 echo "=============================================="
 echo " Install complete. It is now safe to reboot."
 echo "=============================================="
-echo "Remember: root password is still blank/default."
-echo "Set it with 'passwd' after logging in, or chroot"
-echo "back in from the live image if you get locked out."
