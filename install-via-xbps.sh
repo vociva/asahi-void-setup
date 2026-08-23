@@ -172,6 +172,14 @@ echo "  REPO=$REPO"
 echo "  ARCH=$ARCH"
 echo "  XBPS_ARCH=$XBPS_ARCH"
 
+# --- Copy xbps keys into target before installing ---
+echo
+echo "Copying xbps keys into /mnt ..."
+echo "Running: mkdir -p /mnt/var/db/xbps/keys"
+mkdir -p /mnt/var/db/xbps/keys
+echo "Running: cp /var/db/xbps/keys/* /mnt/var/db/xbps/keys/"
+cp /var/db/xbps/keys/* /mnt/var/db/xbps/keys/
+
 # --- Install base system into /mnt ---
 echo
 echo "Installing base system into /mnt ..."
