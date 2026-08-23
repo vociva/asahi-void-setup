@@ -264,8 +264,8 @@ echo "chrooting back in, since it defaults to blank/voidlinux."
 # --- Install GRUB ---
 echo
 echo "Installing GRUB ..."
-echo "Running: grub-install --target=arm-efi --efi-directory=/boot/efi --bootloader-id=\"Void\" --removable"
-grub-install --target=arm-efi --efi-directory=/boot/efi --bootloader-id="Void" --removable
+echo "Running: grub-install --target=arm64-efi --efi-directory=/boot/efi --bootloader-id=\"Void\" --removable"
+grub-install --target=arm64-efi --efi-directory=/boot/efi --bootloader-id="Void" --removable
 
 # --- Reconfigure all packages ---
 echo
